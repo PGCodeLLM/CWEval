@@ -74,17 +74,80 @@ def prepare_language_dataset(lang: str, output_dir: Path):
     print(f"Created {output_file} with {len(tasks)} tasks")
 
 
-def main(output_dir: str):
+def combine_language_datasets(output_dir: Path, languages: list[str]) -> Path:
+    """
+    Combine multiple language datasets into a single JSONL file.
+
+    Args:
+        output_dir: Directory containing individual language JSONL files
+        languages: List of language codes to combine (e.g., ['c', 'py', 'go'])
+
+    Returns:
+        Path to the combined JSONL file
+    """
+    combined_file = output_dir / "tasks_combined.jsonl"
+
+    # Remove existing combined file
+    if combined_file.exists():
+        combined_file.unlink()
+
+    total_tasks = 0
+    with open(combined_file, 'w') as outfile:
+        for lang in languages:
+            lang_file = output_dir / f"tasks_{lang}.jsonl"
+
+            if not lang_file.exists():
+                print(f"Warning: {lang_file} does not exist, skipping language '{lang}'")
+                continue
+
+            lang_task_count = 0
+            with open(lang_file, 'r') as infile:
+                for line in infile:
+                    outfile.write(line)
+                    lang_task_count += 1
+
+            print(f"Added {lang_task_count} tasks for language: {lang}")
+            total_tasks += lang_task_count
+
+    print(f"Combined {total_tasks} total tasks from {len(languages)} language(s) into {combined_file}")
+    return combined_file
+
+
+def main(output_dir: str, languages: str = None):
+    """
+    Prepare CWEval datasets.
+
+    Args:
+        output_dir: Directory to write output files
+        languages: Comma-separated list of languages (e.g., "c,py,go") or None for all
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Prepare individual language datasets for all languages
     for lang in LANGS:
         prepare_language_dataset(lang, output_path)
 
-    print(f"Dataset preparation complete: {output_dir}")
+    # If specific languages requested, combine them
+    if languages:
+        lang_list = [lang.strip() for lang in languages.split(',')]
+        combined_file = combine_language_datasets(output_path, lang_list)
+        print(f"Dataset preparation complete: {output_dir}")
+        print(f"Combined dataset: {combined_file}")
+    else:
+        print(f"Dataset preparation complete: {output_dir}")
 
 
 if __name__ == "__main__":
     import sys
-    output_dir = sys.argv[1] if len(sys.argv) > 1 else "data/prepared"
-    main(output_dir)
+
+    if len(sys.argv) < 2:
+        print("Usage: python prepare_dataset.py <output_dir> [languages]")
+        print("  output_dir: Directory to write output files")
+        print("  languages: Optional comma-separated list (e.g., 'c,py,go'). If not provided, prepares all languages without combining.")
+        sys.exit(1)
+
+    output_dir = sys.argv[1]
+    languages = sys.argv[2] if len(sys.argv) > 2 else None
+
+    main(output_dir, languages)
